@@ -4,19 +4,33 @@ import java.util.List;
 import java.util.Objects;
 
 public class Player {
-	String tag;
+	protected String tag;
 
-	String name;
+	protected String name;
 
-	Integer townHallWeaponLevel;
+	protected Integer townHallWeaponLevel;
 
-	Integer expLevel;
+	protected Integer expLevel;
 
-	String role;
+	protected String role;
 
-	List<Hero> heroes;
+	protected List<Hero> heroes;
+
+	protected Integer bestTrophies;
+
+	protected Integer trophies;
+
+	protected League league;
+
+	protected Integer donations;
+
+	protected Integer donationsReceived;
+
+	protected Integer attackWins;
 
 	protected Integer townHallLevel;
+
+	protected List<PlayerAchievementProgress> achievements;
 
 	public String getTag() {
 		return tag;
@@ -74,11 +88,71 @@ public class Player {
 		this.heroes = heroes;
 	}
 
+	public Integer getBestTrophies() {
+		return bestTrophies;
+	}
+
+	public void setBestTrophies(Integer bestTrophies) {
+		this.bestTrophies = bestTrophies;
+	}
+
+	public Integer getTrophies() {
+		return trophies;
+	}
+
+	public void setTrophies(Integer trophies) {
+		this.trophies = trophies;
+	}
+
+	public Integer getDonations() {
+		return donations;
+	}
+
+	public void setDonations(Integer donations) {
+		this.donations = donations;
+	}
+
+	public Integer getDonationsReceived() {
+		return donationsReceived;
+	}
+
+	public void setDonationsReceived(Integer donationsReceived) {
+		this.donationsReceived = donationsReceived;
+	}
+
+	public Integer getAttackWins() {
+		return attackWins;
+	}
+
+	public void setAttackWins(Integer attackWins) {
+		this.attackWins = attackWins;
+	}
+
+	public List<PlayerAchievementProgress> getAchievements() {
+		return achievements;
+	}
+
+	public void setAchievements(List<PlayerAchievementProgress> achievements) {
+		this.achievements = achievements;
+	}
+
+	public Integer progressValue(String progressName) {
+		if (achievements != null) {
+			PlayerAchievementProgress progress = achievements.stream()
+					.filter(item -> item.getName().equalsIgnoreCase(progressName)).findFirst().get();
+			if (progress != null) {
+				return progress.getValue();
+			}
+		}
+		return null;
+	}
+
 	@Override
 	public boolean equals(Object o) {
 		if (this == o)
 			return true;
-		if (o == null || getClass() != o.getClass())
+
+		if (o == null || !(o instanceof Player) || getClass() != o.getClass())
 			return false;
 		Player member = (Player) o;
 		return tag.equals(member.tag);
@@ -89,10 +163,22 @@ public class Player {
 		return Objects.hash(tag);
 	}
 
+	public League getLeague() {
+		return league;
+	}
+
+	public void setLeague(League league) {
+		this.league = league;
+	}
+
 	@Override
 	public String toString() {
 		return "Player [tag=" + tag + ", name=" + name + ", townHallWeaponLevel=" + townHallWeaponLevel + ", expLevel="
 				+ expLevel + ", role=" + role + ", heroes=" + heroes + ", townHallLevel=" + townHallLevel + "]";
+	}
+
+	public String getSmallImage() {
+		return getLeague() != null && getLeague().getIconUrls() != null ? getLeague().getIconUrls().small : null;
 	}
 
 }

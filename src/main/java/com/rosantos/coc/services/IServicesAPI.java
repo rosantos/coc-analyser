@@ -7,15 +7,19 @@ public interface IServicesAPI {
 	String TAG_CLAN = "clanTag";
 	String TAG_WAR = "warTag";
 	String TAG_PLAYER = "playerTag";
-	
-	String SERVICE_CLAN_CURRENT_WAR = API_ROOT+"/clans/{"+TAG_CLAN+"}/currentwar";
-	String SERVICE_CLAN_CURRENT_LEAGUE = API_ROOT+"/clans/{"+TAG_CLAN+"}/currentwar/leaguegroup";
-	String SERVICE_CLAN = API_ROOT+"/clans/{"+TAG_CLAN+"}";
-	String SERVICE_CLAN_WAR_LEAGUE = API_ROOT+"/clanwarleagues/wars/{"+TAG_WAR+"}";
-	String SERVICE_CLAN_WAR_LOG = API_ROOT+"/clans/{"+TAG_CLAN+"}/warlog";
-	String SERVICE_CLAN_MEMBERS = API_ROOT+"/clans/{"+TAG_CLAN+"}/members";
-	String SERVICE_CLANS = API_ROOT+"/clans";
-	
-	String SERVICE_PLAYER = API_ROOT+"/players/{"+TAG_PLAYER+"}";
+	String TAG_LEAGUE = "leagueId";
 
+	String SERVICE_CLAN_CURRENT_WAR = API_ROOT + "/clans/{" + TAG_CLAN + "}/currentwar";
+	String SERVICE_CLAN_CURRENT_LEAGUE = API_ROOT + "/clans/{" + TAG_CLAN + "}/currentwar/leaguegroup";
+	String SERVICE_CLAN = API_ROOT + "/clans/{" + TAG_CLAN + "}";
+	String SERVICE_CLAN_WAR_LEAGUE = API_ROOT + "/clanwarleagues/wars/{" + TAG_WAR + "}";
+	String SERVICE_CLAN_WAR_LOG = API_ROOT + "/clans/{" + TAG_CLAN + "}/warlog";
+	String SERVICE_CLAN_MEMBERS = API_ROOT + "/clans/{" + TAG_CLAN + "}/members";
+	String SERVICE_CLANS = API_ROOT + "/clans";
+
+	String SERVICE_PLAYER = API_ROOT + "/players/{" + TAG_PLAYER + "}";
+
+	String SERVICE_LEAGUES = API_ROOT + "/leagues";
+	
+	String SERVICE_LEAGUE_SEASON = API_ROOT + "/leagues/{"+TAG_LEAGUE+"}/seasons";
 }

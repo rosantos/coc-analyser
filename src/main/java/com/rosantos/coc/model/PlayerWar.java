@@ -58,17 +58,33 @@ public class PlayerWar extends Player implements Comparable<PlayerWar>{
 	}
 
 	public void updateValues(Player player) {
+		setAttackWins(player.getAttackWins());
+		setBestTrophies(player.getBestTrophies());
+		setDonations(player.getDonations());
+		setDonationsReceived(player.getDonationsReceived());
 		setExpLevel(player.getExpLevel());
 		setHeroes(player.getHeroes());
+		setLeague(player.getLeague());
 		setName(player.getName());
 		setRole(player.getRole());
-		setTag(player.getTag());
 		setTownHallLevel(player.getTownHallLevel());
 		setTownHallWeaponLevel(player.getTownHallWeaponLevel());
+		setTrophies(player.getTrophies());
+		setAchievements(player.getAchievements());
 	}
 
 	@Override
 	public int compareTo(PlayerWar o) {
 		return this.getMapPosition().compareTo(o.getMapPosition());
+	}
+	
+	@Override
+	public boolean equals(Object o) {
+		return super.equals(o);
+	}
+	
+	@Override
+	public int hashCode() {
+		return super.hashCode();
 	}
 }

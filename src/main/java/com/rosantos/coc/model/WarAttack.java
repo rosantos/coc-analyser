@@ -1,6 +1,6 @@
 package com.rosantos.coc.model;
 
-public class WarAttack {
+public class WarAttack implements Comparable<WarAttack> {
 	String attackerTag;
 	String defenderTag;
 	
@@ -42,6 +42,10 @@ public class WarAttack {
 	public String toString() {
 		return "WarAttack [attackerTag=" + attackerTag + ", defenderTag=" + defenderTag + ", stars=" + stars
 				+ ", destructionPercentage=" + destructionPercentage + ", order=" + order + "]";
+	}
+	@Override
+	public int compareTo(WarAttack o) {
+		return this.getOrder().compareTo(o.getOrder());
 	}
 	
 }
