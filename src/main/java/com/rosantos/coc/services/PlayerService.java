@@ -3,13 +3,11 @@ package com.rosantos.coc.services;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
 
 import com.rosantos.coc.model.Player;
 
 @Service
-@PropertySource("classpath:application.properties")
 public class PlayerService extends COCService {
 
 	@Autowired

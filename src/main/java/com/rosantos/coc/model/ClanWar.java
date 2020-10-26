@@ -5,6 +5,8 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class ClanWar extends Clan {
+	
+	War war;
 
 	Integer attacks;
 	
@@ -45,6 +47,14 @@ public class ClanWar extends Clan {
 
 	public void setMembersWar(List<PlayerWar> membersWar) {
 		this.membersWar = membersWar;
+	}
+
+	public War getWar() {
+		return war;
+	}
+
+	public void setWar(War war) {
+		this.war = war;
 	}
 
 	@Override

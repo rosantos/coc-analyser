@@ -18,7 +18,6 @@ import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
 
 import com.rosantos.coc.model.ClanLeague;
@@ -27,27 +26,29 @@ import com.rosantos.coc.model.ConstantsCOC;
 import com.rosantos.coc.model.Hero;
 import com.rosantos.coc.model.PlayerWar;
 import com.rosantos.coc.model.War;
+import com.rosantos.coc.model.WarAttack;
 
 @Service
-@PropertySource("classpath:application.properties")
 public class ExportService {
 
 	private String pathToSave;
+	
+	private static SimpleDateFormat sdf = new SimpleDateFormat("yy-MM-dd");
 
 	@Autowired
-	public ExportService(@Value("${coc.pathtosave}") String pathToSave) {
+	public ExportService() {
 		this.pathToSave = pathToSave;
 	}
 
-	public void save(ClanLeague clanLeague, List<War> wars, String clanTag) {
+	public void saveWar(ClanLeague clanLeague, List<War> wars, String clanTag) {
 		if (wars.isEmpty()) {
 			return;
 		}
+		
 		exportWars(clanLeague, wars, clanTag);
 	}
 
 	private void exportWars(ClanLeague clanLeague, List<War> wars, String clanTag) {
-		SimpleDateFormat sdf = new SimpleDateFormat("yy-MM-dd");
 		try {
 			String fileName = getNameFile(clanLeague, clanTag);
 			FileOutputStream out = new FileOutputStream(new File(fileName));
@@ -65,7 +66,7 @@ public class ExportService {
 			workbook.write(out);
 			workbook.close();
 			out.close();
-			System.out.println("Exportado: "+fileName);
+			System.out.println("Exportado: " + fileName);
 
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
@@ -100,8 +101,11 @@ public class ExportService {
 						clan.getAttacks(), "Stars:", clan.getStars(), "Destruction:", clan.getDestructionPercentage())),
 				maxCol);
 		row = getOrCreate(sheet, numRow++);
-		maxCol = NumberUtils.max(processLine(sheet, initialCol, row, Arrays.asList("Name", "XP", "Role", "Map Position",
-				"TH", "TH Weapon", "KING", "QUEEN", "WARDEN", "CHAMPION")), maxCol);
+		maxCol = NumberUtils.max(processLine(sheet, initialCol, row,
+				Arrays.asList("Name", "XP", "Role", "Map Position", "TH", "TH Weapon", "KING", "QUEEN", "WARDEN",
+						"CHAMPION", "Attacks", "Stars 1", "Destruction 1", "Stars 2", "Destruction 2",
+						"Opponent Attacks", "Opponent Stars", "Oponent Destruction")),
+				maxCol);
 
 		List<PlayerWar> sorted = clan.getMembersWar();
 		Collections.sort(sorted);
@@ -109,10 +113,10 @@ public class ExportService {
 		Integer position = 0;
 		for (PlayerWar player : sorted) {
 			position++;
-			Integer king = 0;
-			Integer queen = 0;
-			Integer warden = 0;
-			Integer champion = 0;
+			Integer king = null;
+			Integer queen = null;
+			Integer warden = null;
+			Integer champion = null;
 			for (Hero hero : player.getHeroes()) {
 				switch (hero.getName()) {
 				case ConstantsCOC.HERO_KING:
@@ -129,10 +133,40 @@ public class ExportService {
 					break;
 				}
 			}
+
+			Integer stars1 = null;
+			Double destruction1 = null;
+
+			Integer stars2 = null;
+			Double destruction2 = null;
+
+			if (player.getAttacks() != null && !player.getAttacks().isEmpty()) {
+				List<WarAttack> attacks = player.getAttacks();
+				Collections.sort(attacks);
+				WarAttack first = attacks.get(0);
+				stars1 = first.getStars();
+				destruction1 = first.getDestructionPercentage();
+				if (attacks.size() > 1) {
+					WarAttack second = attacks.get(1);
+					stars2 = second.getStars();
+					destruction2 = second.getDestructionPercentage();
+				}
+			}
+
+			Integer starsOpponent = null;
+			Double destructionOpponent = null;
+
+			if (player.getBestOpponentAttack() != null) {
+				starsOpponent = player.getBestOpponentAttack().getStars();
+				destructionOpponent = player.getBestOpponentAttack().getDestructionPercentage();
+			}
+
 			row = getOrCreate(sheet, numRow++);
 			maxCol = NumberUtils.max(processLine(sheet, initialCol, row,
 					Arrays.asList(player.getName(), player.getExpLevel(), player.getRole(), position,
-							player.getTownHallLevel(), player.getTownHallWeaponLevel(), king, queen, warden, champion)),
+							player.getTownHallLevel(), player.getTownHallWeaponLevel(), king, queen, warden, champion,
+							player.getAttacks() != null ? player.getAttacks().size() : null, stars1, destruction1,
+							stars2, destruction2, player.getOpponentAttacks(), starsOpponent, destructionOpponent)),
 					maxCol);
 
 		}
