@@ -10,9 +10,12 @@ public class StringsService {
 	public static final String PLAYER_TAG = "header.player.tag";
 	public static final String PLAYER_NAME = "header.player.name";
 	public static final String PLAYER_XP = "header.player.xp";
+	public static final String PLAYER_IN = "header.player.init.season";
+	public static final String PLAYER_OUT = "header.player.out.season";
 	public static final String PLAYER_TH = "header.player.th";
 	public static final String PLAYER_BEST_TROPHIES = "header.player.besttrophies";
 	public static final String PLAYER_LEAGUE = "header.player.league";
+	public static final String PLAYER_LEAGUE_OK = "header.player.league.ok";
 	public static final String PLAYER_TROPHIES = "header.player.trophies";
 	public static final String PLAYER_KING = "header.player.king";
 	public static final String PLAYER_QUEEN = "header.player.queen";
@@ -31,6 +34,7 @@ public class StringsService {
 	public static final String SCORE_LEAGUE = "header.player.score.league";
 	public static final String SCORE_TOTAL = "header.player.score.total";
 	public static final String UPDATED = "updated";
+	public static final String PLAYER_PUSH_DATE = "header.player.push.date";
 	
 	
 	@Autowired

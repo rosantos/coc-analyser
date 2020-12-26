@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.security.GeneralSecurityException;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
+import java.time.chrono.MinguoEra;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -46,8 +47,10 @@ import com.google.api.services.sheets.v4.model.ValueRange;
 import com.rosantos.coc.model.Clan;
 import com.rosantos.coc.model.ClanWar;
 import com.rosantos.coc.model.ConstantsCOC;
+import com.rosantos.coc.model.EnumOkNok;
 import com.rosantos.coc.model.EnumWarState;
 import com.rosantos.coc.model.Hero;
+import com.rosantos.coc.model.League;
 import com.rosantos.coc.model.Player;
 import com.rosantos.coc.model.PlayerWar;
 import com.rosantos.coc.model.WarAttack;
@@ -101,6 +104,9 @@ public class ExportGoogleSheetService {
 	@Value("#{${coc.damage.champion}}")
 	private Map<Integer, Double> mapChampionDamage;
 
+	@Value("#{${coc.th.minimal.leagues}}")
+	private Map<Integer, String> mapMinimalLeagues;
+
 	@Value("${coc.scores.attacks.won.value}")
 	Double scoreAttacksValue;
 
@@ -137,6 +143,8 @@ public class ExportGoogleSheetService {
 
 	private Map<String, Integer> mapFixedHeaders = new HashMap<String, Integer>();
 	private Integer colPlayerTag;
+	private Integer colPushPlayerTag;
+	private List<Object> playerPush;
 
 	private static SimpleDateFormat sdfDayWar = new SimpleDateFormat("MM-dd");
 	private static SimpleDateFormat sdfDay = new SimpleDateFormat("dd/MM/yyyy");
@@ -238,6 +246,7 @@ public class ExportGoogleSheetService {
 
 		List<Player> updateds = new ArrayList<Player>();
 
+		List<List<Object>> outs = new ArrayList<List<Object>>();
 		if (valueRange != null) {
 			List<List<Object>> oldRows = valueRange.getValues();
 			boolean foundedHeader = false;
@@ -253,6 +262,11 @@ public class ExportGoogleSheetService {
 				String playerTag = oldRow.get(colPlayerTag) != null ? oldRow.get(colPlayerTag).toString() : null;
 				Player player = clan.getPlayer(playerTag);
 				if (player == null) {
+					outs.add(oldRow);
+					continue;
+				}
+
+				if (updateds.contains(player)) {
 					continue;
 				}
 
@@ -297,6 +311,9 @@ public class ExportGoogleSheetService {
 						.indexOf(strings.getMessage(StringsService.PLAYER_LEAGUE))] = getPlayerLeague(player);
 				row[getPlayerHeads(clan, valueRange)
 						.indexOf(strings.getMessage(StringsService.PLAYER_TROPHIES))] = player.getTrophies();
+				row[getPlayerHeads(clan, valueRange)
+						.indexOf(strings.getMessage(StringsService.PLAYER_LEAGUE_OK))] = calcPlayerLeagueOk(
+								player.getTownHallLevel(), player.getLeague()).name();
 				row[getPlayerHeads(clan, valueRange).indexOf(
 						strings.getMessage(StringsService.PLAYER_KING))] = king != null ? king : StringUtils.EMPTY;
 				row[getPlayerHeads(clan, valueRange).indexOf(
@@ -311,6 +328,7 @@ public class ExportGoogleSheetService {
 						.indexOf(strings.getMessage(StringsService.PLAYER_DONATIONS))] = player.getDonations();
 				row[getPlayerHeads(clan, valueRange)
 						.indexOf(strings.getMessage(StringsService.PLAYER_ATTACKS))] = player.getAttackWins();
+
 				if (clan instanceof ClanWar) {
 					ClanWar clanWar = (ClanWar) clan;
 					if (player instanceof PlayerWar) {
@@ -389,16 +407,6 @@ public class ExportGoogleSheetService {
 							.indexOf(strings.getMessage(StringsService.SCORE_WAR_ATTACKS))] = 0;
 				}
 
-//				row[getPlayerHeads(clan, valueRange)
-//						.indexOf(strings.getMessage(StringsService.SCORE_WAR_ATTACKS))] = "=MULTIPLY("
-//								+ String.join(";",
-//										getCellName(rows.size() + 1,
-//												getPlayerHeads(clan, valueRange).indexOf(
-//														strings.getMessage(StringsService.PLAYER_WAR_ATTACKS)),
-//												false),
-//										numberFormat.format(scoreWarAttacksValue))
-//								+ ")";
-
 				Double scoreLeagueValue = mapTrophies
 						.get(player.getLeague() != null ? player.getLeague().getName() : StringUtils.EMPTY);
 				row[getPlayerHeads(clan, valueRange)
@@ -429,10 +437,30 @@ public class ExportGoogleSheetService {
 										false))
 						+ ")";
 
+				// Controla informação de Saida
+				Integer outKey = mapFixedHeaders.get(strings.getMessage(StringsService.PLAYER_OUT));
+				Object outValue = StringUtils.EMPTY;
+				if (oldRow.size() > mapFixedHeaders.get(strings.getMessage(StringsService.PLAYER_OUT))) {
+					outValue = oldRow.get(mapFixedHeaders.get(strings.getMessage(StringsService.PLAYER_OUT)));
+				}
+
 				for (Entry<String, Integer> fixed : mapFixedHeaders.entrySet()) {
-					Object oldValue = oldRow.get(fixed.getValue());
+					Object oldValue = StringUtils.EMPTY;
+					if (oldRow.size() > fixed.getValue()) {
+						oldValue = oldRow.get(fixed.getValue());
+					}
 					if (oldValue != null) {
 						row[getPlayerHeads(clan, valueRange).indexOf(fixed.getKey())] = oldValue;
+						if (strings.getMessage(StringsService.PLAYER_IN).equalsIgnoreCase(fixed.getKey())) {
+							if (StringUtils.isBlank(oldValue.toString())
+									|| StringUtils.isNotBlank(outValue.toString())) {
+								row[getPlayerHeads(clan, valueRange).indexOf(fixed.getKey())] = sdfDay
+										.format(Calendar.getInstance().getTime());
+							}
+						}
+						if (strings.getMessage(StringsService.PLAYER_OUT).equalsIgnoreCase(fixed.getKey())) {
+							row[getPlayerHeads(clan, valueRange).indexOf(fixed.getKey())] = StringUtils.EMPTY;
+						}
 					}
 				}
 
@@ -476,6 +504,8 @@ public class ExportGoogleSheetService {
 					.getTag();
 			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_NAME))] = player
 					.getName();
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_IN))] = sdfDay
+					.format(Calendar.getInstance().getTime());
 			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_XP))] = player
 					.getExpLevel();
 			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_TH))] = player
@@ -486,6 +516,9 @@ public class ExportGoogleSheetService {
 					.indexOf(strings.getMessage(StringsService.PLAYER_LEAGUE))] = getPlayerLeague(player);
 			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_TROPHIES))] = player
 					.getTrophies();
+			row[getPlayerHeads(clan, valueRange)
+					.indexOf(strings.getMessage(StringsService.PLAYER_LEAGUE_OK))] = calcPlayerLeagueOk(
+							player.getTownHallLevel(), player.getLeague()).name();
 			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_KING))] = king != null
 					? king
 					: StringUtils.EMPTY;
@@ -528,21 +561,6 @@ public class ExportGoogleSheetService {
 				}
 			}
 
-//			List<Integer> colsWars = getColsWars(clan, valueRange);
-//			if (colsWars != null && !colsWars.isEmpty()) {
-//				StringBuilder warCalc = new StringBuilder("=SUM(");
-//				for (Integer warCol : colsWars) {
-//					warCalc.append(getCellName(rows.size() + 1, warCol, false));
-//					warCalc.append(";");
-//				}
-//				warCalc.append(")");
-//				row[getPlayerHeads(clan, valueRange)
-//						.indexOf(strings.getMessage(StringsService.PLAYER_WAR_ATTACKS))] = warCalc.toString();
-//			} else {
-//				row[getPlayerHeads(clan, valueRange)
-//						.indexOf(strings.getMessage(StringsService.PLAYER_WAR_ATTACKS))] = 0;
-//			}
-
 			row[getPlayerHeads(clan, valueRange)
 					.indexOf(strings.getMessage(StringsService.PLAYER_CLAN_GAMES_INIT))] = player
 							.progressValue(ConstantsCOC.GAMES_PONTUATION);
@@ -580,16 +598,6 @@ public class ExportGoogleSheetService {
 											.indexOf(strings.getMessage(StringsService.PLAYER_CLAN_GAMES)),
 									false)
 							+ ";" + scoreClanGamesPoints + "));" + numberFormat.format(scoreClanGamesValue) + ")";
-
-//			row[getPlayerHeads(clan, valueRange)
-//					.indexOf(strings.getMessage(StringsService.SCORE_WAR_ATTACKS))] = "=MULTIPLY("
-//							+ String.join(";",
-//									getCellName(rows.size() + 1,
-//											getPlayerHeads(clan, valueRange).indexOf(
-//													strings.getMessage(StringsService.PLAYER_WAR_ATTACKS)),
-//											false),
-//									numberFormat.format(scoreWarAttacksValue))
-//							+ ")";
 
 			List<Integer> colsWars = getColsWars(clan, valueRange);
 			if (colsWars != null && !colsWars.isEmpty()) {
@@ -636,9 +644,168 @@ public class ExportGoogleSheetService {
 			rows.add(Arrays.asList(row));
 		}
 
+		// Atualiza informação dos que sairam
+		for (List<Object> oldRow : outs) {
+
+			Object[] row = new Object[getPlayerHeads(clan, valueRange).size()];
+
+			for (int i = 0; i < row.length; i++) {
+				row[i] = StringUtils.EMPTY;
+			}
+
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_TAG))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_TAG)));
+
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_NAME))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_NAME)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_XP))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_XP)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_TH))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_TH)));
+			row[getPlayerHeads(clan, valueRange)
+					.indexOf(strings.getMessage(StringsService.PLAYER_BEST_TROPHIES))] = oldRow
+							.get(getPlayerHeads(clan, valueRange)
+									.indexOf(strings.getMessage(StringsService.PLAYER_BEST_TROPHIES)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_LEAGUE))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_LEAGUE)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_TROPHIES))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_TROPHIES)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_LEAGUE_OK))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_LEAGUE_OK)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_KING))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_KING)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_QUEEN))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_QUEEN)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_WARDEN))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_WARDEN)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_CHAMPION))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_CHAMPION)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_DONATIONS))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_DONATIONS)));
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_ATTACKS))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_ATTACKS)));
+
+			if (clan instanceof ClanWar) {
+				ClanWar clanWar = (ClanWar) clan;
+				row[getPlayerHeads(clan, valueRange)
+						.indexOf(getCurrentWarName(clanWar.getWar().getStartTime()))] = StringUtils.EMPTY;
+			}
+
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.PLAYER_CLAN_GAMES))] = oldRow
+					.get(getPlayerHeads(clan, valueRange)
+							.indexOf(strings.getMessage(StringsService.PLAYER_CLAN_GAMES)));
+
+			row[getPlayerHeads(clan, valueRange)
+					.indexOf(strings.getMessage(StringsService.SCORE_ATTACK))] = "=MULTIPLY("
+							+ String.join(";",
+									getCellName(rows.size() + 1,
+											getPlayerHeads(clan, valueRange)
+													.indexOf(strings.getMessage(StringsService.PLAYER_ATTACKS)),
+											false),
+									numberFormat.format(scoreAttacksValue))
+							+ ")";
+
+			row[getPlayerHeads(clan, valueRange)
+					.indexOf(strings.getMessage(StringsService.SCORE_DONATIONS))] = "=MULTIPLY(INT(DIVIDE("
+							+ getCellName(rows.size() + 1,
+									getPlayerHeads(clan, valueRange)
+											.indexOf(strings.getMessage(StringsService.PLAYER_DONATIONS)),
+									false)
+							+ ";" + scoreDonationsQuantity + "));" + numberFormat.format(scoreDonationsValue) + ")";
+
+			row[getPlayerHeads(clan, valueRange)
+					.indexOf(strings.getMessage(StringsService.SCORE_CLAN_GAMES))] = "=MULTIPLY(INT(DIVIDE("
+							+ getCellName(rows.size() + 1,
+									getPlayerHeads(clan, valueRange)
+											.indexOf(strings.getMessage(StringsService.PLAYER_CLAN_GAMES)),
+									false)
+							+ ";" + scoreClanGamesPoints + "));" + numberFormat.format(scoreClanGamesValue) + ")";
+
+			List<Integer> colsWars = getColsWars(clan, valueRange);
+			if (colsWars != null && !colsWars.isEmpty()) {
+				StringBuilder warCalc = new StringBuilder("=SUM(");
+				for (Integer warCol : colsWars) {
+					warCalc.append(getCellName(rows.size() + 1, warCol, false));
+					warCalc.append(";");
+				}
+				warCalc.append(")");
+				row[getPlayerHeads(clan, valueRange)
+						.indexOf(strings.getMessage(StringsService.SCORE_WAR_ATTACKS))] = warCalc.toString();
+			} else {
+				row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.SCORE_WAR_ATTACKS))] = 0;
+			}
+
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.SCORE_LEAGUE))] = oldRow
+					.get(getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.SCORE_LEAGUE)));
+
+			row[getPlayerHeads(clan, valueRange).indexOf(strings.getMessage(StringsService.SCORE_TOTAL))] = "=SUM("
+					+ String.join(";",
+							getCellName(rows.size() + 1,
+									getPlayerHeads(clan, valueRange)
+											.indexOf(strings.getMessage(StringsService.SCORE_ATTACK)),
+									false),
+							getCellName(rows.size() + 1,
+									getPlayerHeads(clan, valueRange)
+											.indexOf(strings.getMessage(StringsService.SCORE_DONATIONS)),
+									false),
+							getCellName(rows.size() + 1,
+									getPlayerHeads(clan, valueRange)
+											.indexOf(strings.getMessage(StringsService.SCORE_CLAN_GAMES)),
+									false),
+							getCellName(rows.size() + 1,
+									getPlayerHeads(clan, valueRange)
+											.indexOf(strings.getMessage(StringsService.SCORE_WAR_ATTACKS)),
+									false),
+							getCellName(rows.size() + 1, getPlayerHeads(clan, valueRange)
+									.indexOf(strings.getMessage(StringsService.SCORE_LEAGUE)), false))
+					+ ")";
+
+			for (Entry<String, Integer> fixed : mapFixedHeaders.entrySet()) {
+				Object oldValue = StringUtils.EMPTY;
+				if (oldRow.size() > fixed.getValue()) {
+					oldValue = oldRow.get(fixed.getValue());
+				}
+				if (oldValue != null) {
+					row[getPlayerHeads(clan, valueRange).indexOf(fixed.getKey())] = oldValue;
+					if (strings.getMessage(StringsService.PLAYER_OUT).equalsIgnoreCase(fixed.getKey())) {
+						if (StringUtils.isBlank(oldValue.toString())) {
+							row[getPlayerHeads(clan, valueRange).indexOf(fixed.getKey())] = sdfDay
+									.format(Calendar.getInstance().getTime());
+						}
+					}
+				}
+			}
+
+			rows.add(Arrays.asList(row));
+		}
+
+		// Limpa celulas de players que sairam
+		if (valueRange != null && valueRange.getValues() != null && valueRange.getValues().size() > rows.size()) {
+			for (int j = rows.size() - 1; j < valueRange.getValues().size(); j++) {
+				Object[] row = new Object[getPlayerHeads(clan, valueRange).size()];
+
+				for (int i = 0; i < row.length; i++) {
+					row[i] = StringUtils.EMPTY;
+				}
+				rows.add(Arrays.asList(row));
+			}
+		}
+
 		ValueRange bodyValues = new ValueRange().setValues(rows).setRange(sheetName);
 
 		return bodyValues;
+	}
+
+	private EnumOkNok calcPlayerLeagueOk(Integer townHallLevel, League league) {
+		if (league == null) {
+			return EnumOkNok.NOK;
+		}
+		if (!mapMinimalLeagues.containsKey(townHallLevel)) {
+			return EnumOkNok.NOK;
+		}
+		Double minimal = mapTrophies.get(mapMinimalLeagues.get(townHallLevel));
+		Double current = mapTrophies.get(league.getName());
+		return minimal > current ? EnumOkNok.NOK : EnumOkNok.OK;
 	}
 
 	private List<Integer> getColsWars(Clan clan, ValueRange valueRange) {
@@ -666,6 +833,7 @@ public class ExportGoogleSheetService {
 				playerHeaders.add(strings.getMessage(StringsService.PLAYER_CLAN_GAMES_INIT));
 				playerHeaders.add(strings.getMessage(StringsService.PLAYER_LEAGUE));
 				playerHeaders.add(strings.getMessage(StringsService.PLAYER_TROPHIES));
+				playerHeaders.add(strings.getMessage(StringsService.PLAYER_LEAGUE_OK));
 				playerHeaders.add(strings.getMessage(StringsService.PLAYER_KING));
 				playerHeaders.add(strings.getMessage(StringsService.PLAYER_QUEEN));
 				playerHeaders.add(strings.getMessage(StringsService.PLAYER_WARDEN));
@@ -675,7 +843,6 @@ public class ExportGoogleSheetService {
 				if (clan instanceof ClanWar) {
 					playerHeaders.add(getCurrentWarName(((ClanWar) clan).getWar().getStartTime()));
 				}
-//				playerHeaders.add(strings.getMessage(StringsService.PLAYER_WAR_ATTACKS));
 				playerHeaders.add(strings.getMessage(StringsService.PLAYER_CLAN_GAMES));
 				playerHeaders.add(strings.getMessage(StringsService.SCORE_ATTACK));
 				playerHeaders.add(strings.getMessage(StringsService.SCORE_DONATIONS));
@@ -683,6 +850,8 @@ public class ExportGoogleSheetService {
 				playerHeaders.add(strings.getMessage(StringsService.SCORE_WAR_ATTACKS));
 				playerHeaders.add(strings.getMessage(StringsService.SCORE_LEAGUE));
 				playerHeaders.add(strings.getMessage(StringsService.SCORE_TOTAL));
+				playerHeaders.add(strings.getMessage(StringsService.PLAYER_IN));
+				playerHeaders.add(strings.getMessage(StringsService.PLAYER_OUT));
 			} else {
 				List<List<Object>> rows = valueRange.getValues();
 				int row = 0;
@@ -703,6 +872,7 @@ public class ExportGoogleSheetService {
 				boolean isWar = false;
 				int col = 0;
 				String currentWar = null;
+				boolean foundWarHeader = false;
 				for (Object header : rows.get(row)) {
 					if (clan instanceof ClanWar && header.toString().toUpperCase()
 							.startsWith(strings.getMessage(StringsService.PLAYER_WAR_DAY).toUpperCase())) {
@@ -712,6 +882,7 @@ public class ExportGoogleSheetService {
 						} else {
 							isWar = true;
 						}
+						foundWarHeader = true;
 					} else if (isWar) {
 						playerHeaders.add(currentWar);
 						isWar = false;
@@ -736,6 +907,10 @@ public class ExportGoogleSheetService {
 			return;
 		} else if (strings.getMessage(StringsService.PLAYER_CLAN_GAMES_INIT).equalsIgnoreCase(header)) {
 			mapFixedHeaders.put(header, col);
+		} else if (strings.getMessage(StringsService.PLAYER_IN).equalsIgnoreCase(header)) {
+			mapFixedHeaders.put(header, col);
+		} else if (strings.getMessage(StringsService.PLAYER_OUT).equalsIgnoreCase(header)) {
+			mapFixedHeaders.put(header, col);
 		} else if (header.toUpperCase().startsWith(strings.getMessage(StringsService.PLAYER_WAR_DAY).toUpperCase())) {
 			mapFixedHeaders.put(header, col);
 		}
@@ -754,7 +929,7 @@ public class ExportGoogleSheetService {
 		ValueRange valueRange = null;
 		try {
 			valueRange = getService().spreadsheets().values().get(pushSheet, sheetName).execute();
-			valueRange = updatePushValues(getService(), clan, valueRange, sheetName);
+			valueRange = updatePushValues(getService(), clan, sheetName, valueRange);
 		} catch (IOException e) {
 			valueRange = createPushValues(getService(), sheetName, clan);
 		}
@@ -787,103 +962,162 @@ public class ExportGoogleSheetService {
 		return toAlphabetic(startColumn) + startRow;
 	}
 
-	private ValueRange createPushValues(Sheets service, String range, Clan clan) throws IOException {
+	private ValueRange createPushValues(Sheets service, String sheetName, Clan clan) throws IOException {
 		List<Request> requests = new ArrayList<>();
 		requests.add(new Request()
-				.setAddSheet(new AddSheetRequest().setProperties(new SheetProperties().set("title", range))));
+				.setAddSheet(new AddSheetRequest().setProperties(new SheetProperties().set("title", sheetName))));
 
 		BatchUpdateSpreadsheetRequest body = new BatchUpdateSpreadsheetRequest().setRequests(requests);
 		service.spreadsheets().batchUpdate(pushSheet, body).execute();
 
-		List<Player> players = clan.getMembers();
-		Collections.sort(players, new Comparator<Player>() {
-
-			@Override
-			public int compare(Player o1, Player o2) {
-				int comp = o2.getExpLevel().compareTo(o1.getExpLevel());
-				return comp == 0 ? o1.getTag().compareTo(o2.getTag()) : comp;
-			}
-		});
-
-		List<List<Object>> rows = new ArrayList<List<Object>>();
-		rows.add(Arrays.asList("=IMAGE(\"" + clan.getShield() + "\")", clan.getName()));
-		rows.add(Arrays.asList());
-		rows.add(Arrays.asList(strings.getMessage(StringsService.PLAYER_TAG),
-				strings.getMessage(StringsService.PLAYER_NAME), strings.getMessage(StringsService.PLAYER_XP),
-				strings.getMessage(StringsService.PLAYER_TH), strings.getMessage(StringsService.PLAYER_BEST_TROPHIES),
-				sdfDay.format(Calendar.getInstance().getTime()), StringUtils.EMPTY,
-				strings.getMessage(StringsService.UPDATED, sdfTime.format(Calendar.getInstance().getTime()))));
-		for (Player player : players) {
-			rows.add(Arrays.asList(player.getTag(), player.getName(), player.getExpLevel(), player.getTownHallLevel(),
-					player.getBestTrophies(), getPlayerLeague(player), player.getTrophies()));
-		}
-
-		ValueRange bodyValues = new ValueRange().setValues(rows).setRange(range);
-
-		return bodyValues;
-
+		return updatePushValues(service, clan, sheetName, null);
 	}
 
 	private String getPlayerLeague(Player player) {
 		return player.getSmallImage() != null ? "=IMAGE(\"" + player.getSmallImage() + "\")" : StringUtils.EMPTY;
 	}
 
-	private ValueRange updatePushValues(Sheets service, Clan clan, ValueRange range, String rangeName) {
-		String day = sdfDay.format(Calendar.getInstance().getTime());
-		int numRow = 0;
-		int numCol = 0;
-		boolean foundHeader = false;
-		boolean foundDate = false;
-		for (List<Object> rows : range.getValues()) {
-			numRow++;
-			numCol = 0;
-			for (Object cell : rows) {
-				if (strings.getMessage(StringsService.PLAYER_TAG).equalsIgnoreCase(String.valueOf(cell))) {
-					foundHeader = true;
-				}
-				if (day.equalsIgnoreCase(String.valueOf(cell))) {
-					foundDate = true;
-					break;
-				}
-				numCol++;
+	private ValueRange updatePushValues(Sheets service, Clan clan, String sheetName, ValueRange valueRange) {
+		List<Player> players = clan.getMembers();
+		Collections.sort(players, new Comparator<Player>() {
+
+			@Override
+			public int compare(Player o1, Player o2) {
+				int comp = o2.getTrophies().compareTo(o1.getTrophies());
+				return comp == 0 ? o1.getExpLevel().compareTo(o2.getExpLevel()) : comp;
 			}
-			if (foundHeader) {
-				if (!foundDate) {
-					numCol--;
-					numCol--;
+		});
+
+		List<List<Object>> rows = new ArrayList<List<Object>>();
+		rows.add(Arrays.asList("=IMAGE(\"" + clan.getShield() + "\")", clan.getName()));
+		rows.add(Arrays
+				.asList(strings.getMessage(StringsService.UPDATED, sdfTime.format(Calendar.getInstance().getTime()))));
+		rows.add(getPushHeads(clan, valueRange));
+		Map<String, Map<String, Map<String, String>>> mapPush = new HashMap<String, Map<String, Map<String, String>>>();
+
+		if (valueRange != null) {
+			List<List<Object>> oldRows = valueRange.getValues();
+			boolean foundedHeader = false;
+			// tag,date,header,value
+			for (List<Object> oldRow : oldRows) {
+				if (!foundedHeader) {
+					if (!oldRow.contains(strings.getMessage(StringsService.PLAYER_TAG))) {
+						continue;
+					}
+					foundedHeader = true;
+					continue;
 				}
-				break;
+
+				String playerTag = oldRow.get(colPushPlayerTag) != null ? oldRow.get(colPushPlayerTag).toString() : null;
+				if (!mapPush.containsKey(playerTag)) {
+					mapPush.put(playerTag, new HashMap<String, Map<String, String>>());
+				}
+
+				Map<String, Map<String, String>> mapPlayer = mapPush.get(playerTag);
+				String valueDate = getOldPushValue(oldRow, clan, valueRange,
+						strings.getMessage(StringsService.PLAYER_PUSH_DATE));
+				if (!mapPlayer.containsKey(valueDate)) {
+					mapPlayer.put(valueDate, new HashMap<String, String>());
+				}
+
+				Map<String, String> mapOtherValues = mapPlayer.get(valueDate);
+				for (Object header : getPushHeads(clan, valueRange)) {
+					if (!strings.getMessage(StringsService.PLAYER_TAG).equals(header.toString())
+							&& !strings.getMessage(StringsService.PLAYER_PUSH_DATE).equals(header.toString())) {
+						mapOtherValues.put(header.toString(),
+								getOldPushValue(oldRow, clan, valueRange, header.toString()));
+					}
+				}
 			}
 		}
-		List<List<Object>> values = new ArrayList<List<Object>>();
-		values.add(Arrays.asList(day, StringUtils.EMPTY, "Progress",
-				"Updated: " + sdfTime.format(Calendar.getInstance().getTime())));
-		boolean initMembers = false;
-		for (List<Object> row : range.getValues()) {
-			if (row == null || row.isEmpty()) {
-				continue;
+		
+		String currentDate = sdfDay.format(Calendar.getInstance().getTime());
+		for (Player player : players) {
+			if (!mapPush.containsKey(player.getTag())) {
+				mapPush.put(player.getTag(), new HashMap<String, Map<String, String>>());
 			}
-			if (strings.getMessage(StringsService.PLAYER_TAG).equalsIgnoreCase(String.valueOf(row.get(0)))) {
-				initMembers = true;
-				continue;
+
+			Map<String, Map<String, String>> mapPlayer = mapPush.get(player.getTag());
+			if (!mapPlayer.containsKey(currentDate)) {
+				mapPlayer.put(currentDate, new HashMap<String, String>());
 			}
-			if (!initMembers) {
-				continue;
-			}
-			Player player = clan.getPlayer(String.valueOf(row.get(0)));
-			if (player != null) {
-				values.add(Arrays.asList(getPlayerLeague(player), player.getTrophies(), "=" + toAlphabetic(numCol + 1)
-						+ (numRow + values.size()) + "-" + toAlphabetic(numCol - 1) + (numRow + values.size())));
-			} else {
-				values.add(Arrays.asList());
-			}
+
+			Map<String, String> mapOtherValues = mapPlayer.get(currentDate);
+			
+			mapOtherValues.put(strings.getMessage(StringsService.PLAYER_NAME), player.getName());
+			mapOtherValues.put(strings.getMessage(StringsService.PLAYER_XP), player.getExpLevel()!= null?player.getExpLevel().toString():StringUtils.EMPTY);
+			mapOtherValues.put(strings.getMessage(StringsService.PLAYER_TH), player.getTownHallLevel()!= null?player.getTownHallLevel().toString():StringUtils.EMPTY);
+			mapOtherValues.put(strings.getMessage(StringsService.PLAYER_BEST_TROPHIES), player.getBestTrophies()!= null?player.getBestTrophies().toString():StringUtils.EMPTY);
+			mapOtherValues.put(strings.getMessage(StringsService.PLAYER_TROPHIES), player.getTrophies()!= null?player.getTrophies().toString():StringUtils.EMPTY);
+							
 		}
 
-		String newRange = rangeName + "!" + toAlphabetic(numCol) + numRow + ":" + toAlphabetic(numCol + 3) + numRow
-				+ values.size();
-		ValueRange bodyValues = new ValueRange().setValues(values).setRange(newRange);
-
+		for (Entry<String, Map<String, Map<String, String>>> entryPlayer : mapPush.entrySet()) {
+			for (Entry<String, Map<String, String>> entryDate : entryPlayer.getValue().entrySet()) {
+				Object[] row = new Object[getPushHeads(clan, valueRange).size()];
+				for (int i = 0; i < row.length; i++) {
+					row[i] = StringUtils.EMPTY;
+				}
+				row[getPushHeads(clan, valueRange)
+						.indexOf(strings.getMessage(StringsService.PLAYER_TAG))] = entryPlayer.getKey();
+				row[getPushHeads(clan, valueRange)
+						.indexOf(strings.getMessage(StringsService.PLAYER_PUSH_DATE))] = entryDate.getKey();
+				for (Entry<String, String> entryOthers : entryDate.getValue().entrySet()) {
+					row[getPushHeads(clan, valueRange).indexOf(entryOthers.getKey())] = entryOthers.getValue();
+				}
+				rows.add(Arrays.asList(row));
+			}
+		}
+		
+		ValueRange bodyValues = new ValueRange().setValues(rows).setRange(sheetName);
 		return bodyValues;
+
+	}
+
+	private String getOldPushValue(List<Object> oldRow, Clan clan, ValueRange valueRange, String header) {
+		int index = getPushHeads(clan, valueRange).indexOf(header);
+		if (oldRow.size() > index) {
+			return oldRow.get(index).toString();
+		}
+		return StringUtils.EMPTY;
+	}
+
+	private List<Object> getPushHeads(Clan clan, ValueRange valueRange) {
+		if (playerPush == null || playerPush.isEmpty()) {
+			playerPush = new ArrayList<Object>();
+			
+			if (valueRange == null) {
+				playerPush.add(strings.getMessage(StringsService.PLAYER_TAG));
+				playerPush.add(strings.getMessage(StringsService.PLAYER_NAME));
+				playerPush.add(strings.getMessage(StringsService.PLAYER_PUSH_DATE));
+				playerPush.add(strings.getMessage(StringsService.PLAYER_XP));
+				playerPush.add(strings.getMessage(StringsService.PLAYER_TH));
+				playerPush.add(strings.getMessage(StringsService.PLAYER_TROPHIES));
+				playerPush.add(strings.getMessage(StringsService.PLAYER_BEST_TROPHIES));
+			} else {
+				List<List<Object>> rows = valueRange.getValues();
+				int row = 0;
+				boolean foundedHeader = false;
+				for (List<Object> cols : rows) {
+					for (Object col : cols) {
+						if (strings.getMessage(StringsService.PLAYER_TAG).equalsIgnoreCase(col.toString())) {
+							foundedHeader = true;
+							break;
+						}
+					}
+					if (foundedHeader) {
+						break;
+					}
+					row++;
+				}
+
+				for (Object header : rows.get(row)) {
+					playerPush.add(header.toString());
+				}
+			}
+			colPushPlayerTag = playerPush.indexOf(strings.getMessage(StringsService.PLAYER_TAG));
+		}
+		return playerPush;
 	}
 
 	public static String toAlphabetic(int i) {

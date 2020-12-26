@@ -11,7 +11,7 @@
 	</parent>
 	<groupId>com.rosantos.coc</groupId>
 	<artifactId>coc</artifactId>
-	<version>2.0.2020-10</version>
+	<version>4.0.2021-01</version>
 	<name>coc</name>
 	<description>COC</description>
 
